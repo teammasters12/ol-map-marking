@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapExam Pro | Cloud Database Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Firebase SDK for optional custom Firebase DB -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a28;
+            --bg-card-hover: #222235;
+            --bg-elevated: #252538;
+            --accent-primary: #6c5ce7;
+            --accent-secondary: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.3);
+            --success: #00cec9;
+            --success-glow: rgba(0, 206, 201, 0.3);
+            --danger: #ff6b6b;
+            --danger-glow: rgba(255, 107, 107, 0.3);
+            --warning: #feca57;
+            --warning-glow: rgba(254, 202, 87, 0.3);
+            --info: #54a0ff;
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-muted: #55556a;
+            --border: rgba(255,255,255,0.06);
+            --border-hover: rgba(108, 92, 231, 0.4);
+            --glass: rgba(255,255,255,0.03);
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --shadow-md: 0 8px 32px rgba(0,0,0,0.4);
+            --shadow-lg: 0 16px 48px rgba(0,0,0,0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-grid {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(108, 92, 231, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 206, 201, 0.04) 0%, transparent 50%);
+            pointer-events: none; z-index: 0;
+        }
+
+        /* ── Header & Topbar ── */
+        .topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0; height: 64px;
+            background: rgba(10, 10, 15, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px; z-index: 1000;
+        }
+
+        .topbar-brand { display: flex; align-items: center; gap: 12px; }
+        .brand-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--success));
+            border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            font-size: 18px; box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        .brand-text { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.5px; }
+        .brand-text span {
+            background: linear-gradient(135deg, var(--accent-secondary), var(--success));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .db-status-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 100px;
+            background: rgba(0, 206, 201, 0.1); border: 1px solid rgba(0, 206, 201, 0.3);
+            font-size: 0.78rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .db-status-pill:hover { background: rgba(0, 206, 201, 0.2); }
+        .db-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--success); box-shadow: 0 0 10px var(--success);
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.3); }
+        }
+
+        .topbar-nav {
+            display: flex; gap: 4px; background: var(--bg-card);
+            padding: 4px; border-radius: 12px; border: 1px solid var(--border);
+        }
+
+        .topbar-nav-btn {
+            padding: 8px 16px; border: none; border-radius: 9px; cursor: pointer;
+            font-size: 0.82rem; font-weight: 600; font-family: inherit;
+            background: transparent; color: var(--text-secondary);
+            display: flex; align-items: center; gap: 7px; transition: all 0.25s ease;
+        }
+
+        .topbar-nav-btn.active {
+            background: var(--accent-primary); color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        /* ── Layout ── */
+        .main-content { margin-top: 64px; position: relative; z-index: 1; }
+        .section { display: none; animation: fadeSlideIn 0.35s ease; }
+        .section.active { display: block; }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .container { max-width: 1440px; margin: 0 auto; padding: 24px 32px; }
+
+        /* ── Cloud Banner ── */
+        .cloud-banner {
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(0, 206, 201, 0.1));
+            border: 1px solid rgba(108, 92, 231, 0.3);
+            border-radius: var(--radius-md);
+            padding: 14px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .cloud-banner-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.88rem;
+        }
+
+        .room-tag {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(108, 92, 231, 0.25);
+            color: var(--accent-secondary);
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 20px; border: none; border-radius: var(--radius-sm);
+            cursor: pointer; font-size: 0.85rem; font-weight: 600; font-family: inherit;
+            transition: all 0.25s ease; white-space: nowrap;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn-primary { background: var(--accent-primary); color: white; box-shadow: 0 4px 14px var(--accent-glow); }
+        .btn-success { background: var(--success); color: #0a0a0f; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: #0a0a0f; }
+        .btn-ghost { background: var(--glass); color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-ghost:hover { background: var(--bg-elevated); color: var(--text-primary); }
+        .btn-sm { padding: 6px 12px; font-size: 0.78rem; }
+        .btn-lg { padding: 14px 28px; font-size: 0.95rem; border-radius: var(--radius-md); }
+
+        /* ── Stats & Cards ── */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 30px; }
+        .stat-item {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); padding: 20px 16px; text-align: center;
+        }
+        .stat-value { font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .stat-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-top: 4px; }
+
+        .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .feature-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 32px 24px; text-align: center;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        .feature-card:hover { transform: translateY(-6px); border-color: var(--border-hover); box-shadow: var(--shadow-lg); }
+        .feature-icon {
+            width: 56px; height: 56px; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center; font-size: 26px;
+            margin: 0 auto 16px; background: rgba(108, 92, 231, 0.15);
+        }
+
+        /* ── Map Layout ── */
+        .map-layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+        .map-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+        .map-panel-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary);
+        }
+        .map-panel-body { padding: 12px; }
+        .map-wrapper { position: relative; cursor: crosshair; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-secondary); }
+        .map-wrapper img { width: 100%; height: auto; display: block; user-select: none; }
+
+        .map-marker { position: absolute; transform: translate(-50%, -50%); cursor: pointer; z-index: 10; }
+        .marker-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: var(--accent-primary); border: 2.5px solid white;
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        .marker-dot.correct { background: var(--success); box-shadow: 0 0 0 3px var(--success-glow); }
+        .marker-dot.wrong { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-glow); }
+        .marker-dot.answer { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-glow); }
+
+        .marker-label {
+            position: absolute; bottom: calc(100% + 6px); left: 50%;
+            transform: translateX(-50%); background: rgba(10, 10, 15, 0.92);
+            color: white; padding: 4px 10px; border-radius: 6px;
+            font-size: 0.68rem; font-weight: 600; white-space: nowrap;
+            pointer-events: none; border: 1px solid var(--border);
+        }
+
+        .sidebar-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+        .sidebar-header { padding: 18px 20px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+        .sidebar-header h3 { font-size: 0.95rem; font-weight: 700; }
+        .sidebar-body { padding: 16px; max-height: 70vh; overflow-y: auto; }
+
+        .control-bar {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); padding: 14px 20px;
+            display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px;
+        }
+        .select-modern, .form-input {
+            padding: 8px 14px; border-radius: var(--radius-sm);
+            border: 1px solid var(--border); background: var(--bg-secondary);
+            color: var(--text-primary); font-size: 0.85rem; font-family: inherit;
+        }
+        .form-input { width: 100%; }
+
+        /* ── Admin Styles ── */
+        .admin-layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
+        .form-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; }
+        .coord-box { background: rgba(0, 206, 201, 0.08); border: 1px solid rgba(0, 206, 201, 0.2); border-radius: var(--radius-sm); padding: 12px; text-align: center; color: var(--success); font-family: 'JetBrains Mono'; font-weight: 600; }
+
+        .admin-tabs { display: flex; gap: 4px; background: var(--bg-card); padding: 4px; border-radius: var(--radius-md); margin-bottom: 24px; width: fit-content; }
+        .admin-tab-btn {
+            padding: 10px 20px; border: none; border-radius: var(--radius-sm);
+            background: transparent; color: var(--text-secondary); cursor: pointer;
+            font-size: 0.84rem; font-weight: 600; font-family: inherit;
+        }
+        .admin-tab-btn.active { background: var(--accent-primary); color: white; }
+
+        /* ── Modals & Toasts ── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px);
+            z-index: 2000; justify-content: center; align-items: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-box {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-xl); padding: 36px; max-width: 500px;
+            width: 90%; text-align: center;
+        }
+
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 3000; }
+        .toast {
+            padding: 14px 22px; border-radius: var(--radius-md);
+            font-size: 0.85rem; font-weight: 600; margin-top: 8px;
+            transform: translateX(120%); transition: transform 0.3s ease; box-shadow: var(--shadow-lg);
+        }
+        .toast.show { transform: translateX(0); }
+        .toast-success { background: var(--success); color: #0a0a0f; }
+        .toast-error { background: var(--danger); color: white; }
+        .toast-info { background: var(--accent-primary); color: white; }
+
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        .data-table th { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; }
+
+        @media (max-width: 900px) {
+            .map-layout, .admin-layout, .feature-grid, .stats-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid"></div>
+
+    <!-- ═══════════ TOPBAR ═══════════ -->
+    <header class="topbar">
+        <div class="topbar-brand">
+            <div class="brand-icon">🗺️</div>
+            <div class="brand-text">Map<span>Exam</span></div>
+        </div>
+
+        <nav class="topbar-nav">
+            <button class="topbar-nav-btn active" onclick="showSection('home')">🏠 Home</button>
+            <button class="topbar-nav-btn" onclick="showSection('practice')">📖 Practice</button>
+            <button class="topbar-nav-btn" onclick="showSection('exam')">🎯 Exam</button>
+            <button class="topbar-nav-btn" onclick="showSection('admin')">⚙️ Admin</button>
+        </nav>
+
+        <div class="topbar-actions">
+            <div class="db-status-pill" onclick="openDatabaseModal()">
+                <div class="db-dot"></div>
+                <span id="top-room-badge">Cloud Room: default</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+
+        <!-- ═══════════ HOME ═══════════ -->
+        <div id="section-home" class="section active">
+            <div class="container">
+
+                <div class="cloud-banner">
+                    <div class="cloud-banner-info">
+                        <span style="font-size:1.5rem;">☁️</span>
+                        <div>
+                            <strong>Live Cloud Database Connected</strong>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">
+                                Active Room Code: <span class="room-tag" id="home-room-tag">default</span> • All changes on PC sync to your Phone automatically.
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="openDatabaseModal()">⚡ Change Room / Device Sync</button>
+                </div>
+
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-total" style="color:var(--accent-primary);">0</div>
+                        <div class="stat-label">Total Places</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-sl" style="color:var(--success);">0</div>
+                        <div class="stat-label">Sri Lanka</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-world" style="color:var(--info);">0</div>
+                        <div class="stat-label">World Map</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-sync-time" style="color:var(--warning); font-size:1.2rem; padding-top:8px;">Live</div>
+                        <div class="stat-label">Cloud Sync</div>
+                    </div>
+                </div>
+
+                <div class="feature-grid">
+                    <div class="feature-card" onclick="showSection('practice')">
+                        <div class="feature-icon">📖</div>
+                        <h3>Free Practice</h3>
+                        <p>Explore map places, review location names, and practice without pressure.</p>
+                    </div>
+                    <div class="feature-card" onclick="showSection('exam')">
+                        <div class="feature-icon">🎯</div>
+                        <h3>Exam Mode</h3>
+                        <p>Timed tests with real score calculation and pinpoint accuracy analysis.</p>
+                    </div>
+                    <div class="feature-card" onclick="showSection('admin')">
+                        <div class="feature-icon">⚙️</div>
+                        <h3>Admin Panel</h3>
+                        <p>Add new places by clicking directly on the map. Updates sync live to all devices.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ PRACTICE ═══════════ -->
+        <div id="section-practice" class="section">
+            <div class="container">
+                <div class="control-bar">
+                    <select class="select-modern" id="practice-map-select" onchange="switchPracticeMap()">
+                        <option value="srilanka">🇱🇰 Sri Lanka Map</option>
+                        <option value="world">🌍 World Map</option>
+                    </select>
+                    <select class="select-modern" id="practice-cat-filter" onchange="refreshPractice()">
+                        <option value="all">All Categories</option>
+                        <option value="kingdom">Kingdoms</option>
+                        <option value="city">Cities</option>
+                        <option value="port">Ports</option>
+                        <option value="river">Rivers</option>
+                        <option value="mountain">Mountains</option>
+                    </select>
+                    <button class="btn btn-ghost btn-sm" onclick="toggleLabels()">👁 Toggle Labels</button>
+                    <button class="btn btn-ghost btn-sm" onclick="syncFromCloud()">🔄 Force Refresh</button>
+                </div>
+
+                <div class="map-layout">
+                    <div class="map-panel">
+                        <div class="map-panel-header">
+                            <h4>📍 Map View</h4>
+                            <span id="practice-place-count" style="font-size:0.8rem; color:var(--text-muted);">0 places</span>
+                        </div>
+                        <div class="map-panel-body">
+                            <div class="map-wrapper" id="practice-map-wrapper">
+                                <img id="practice-map-img" src="https://pastpapers.wiki/wp-content/uploads/2022/03/Empty-Sri-Lanka-Map-for-Practice-Ol-History-Map-Marking-in-GCE-OL-Examination-scaled.jpg" alt="Map">
+                                <div id="practice-markers"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-panel">
+                        <div class="sidebar-header">
+                            <h3>📋 Saved Places (Cloud)</h3>
+                        </div>
+                        <div class="sidebar-body" id="practice-place-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ EXAM ═══════════ -->
+        <div id="section-exam" class="section">
+            <div id="exam-setup" class="container" style="max-width:550px;">
+                <div class="form-panel">
+                    <h2 style="text-align:center; margin-bottom:20px;">🎯 Map Marking Exam</h2>
+                    <div class="form-group">
+                        <label class="form-label">Select Map</label>
+                        <select class="form-input" id="exam-map-select">
+                            <option value="srilanka">🇱🇰 Sri Lanka Map</option>
+                            <option value="world">🌍 World Map</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Questions</label>
+                        <select class="form-input" id="exam-q-count">
+                            <option value="5">5 Questions</option>
+                            <option value="10" selected>10 Questions</option>
+                            <option value="all">All Places</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary btn-lg" style="width:100%;" onclick="startExam()">🚀 Start Exam</button>
+                </div>
+            </div>
+
+            <div id="exam-active" style="display:none;">
+                <div class="container">
+                    <div class="map-layout">
+                        <div class="map-panel">
+                            <div class="map-panel-header">
+                                <h4>🎯 Click on the location of the place</h4>
+                                <button class="btn btn-danger btn-sm" onclick="endExam()">🏁 End</button>
+                            </div>
+                            <div class="map-panel-body">
+                                <div class="map-wrapper" id="exam-map-wrapper">
+                                    <img id="exam-map-img" src="" alt="Exam Map">
+                                    <div id="exam-markers"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-panel">
+                            <div class="sidebar-body">
+                                <div style="text-align:center; padding:15px 0;">
+                                    <div style="font-size:0.8rem; color:var(--text-muted);" id="q-number">Question 1</div>
+                                    <div style="font-size:1.5rem; font-weight:800; color:var(--accent-secondary);" id="q-text">Loading...</div>
+                                    <div style="margin-top:10px; font-size:1.8rem; font-weight:900; color:var(--success);" id="live-score">0/0</div>
+                                </div>
+                                <button class="btn btn-warning btn-sm" style="width:100%; margin-top:10px;" onclick="skipQuestion()">⏭ Skip</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ ADMIN ═══════════ -->
+        <div id="section-admin" class="section">
+            <div class="container">
+                <div id="admin-locked" style="text-align:center; padding:60px 0;">
+                    <h2>🔒 Admin Panel</h2>
+                    <div style="display:flex; gap:8px; justify-content:center; margin-top:20px;">
+                        <input type="password" id="admin-pwd" class="form-input" style="width:200px;" placeholder="Password">
+                        <button class="btn btn-primary" onclick="unlockAdmin()">Unlock</button>
+                    </div>
+                    <p style="font-size:0.75rem; color:var(--text-muted); margin-top:10px;">Default: admin123</p>
+                </div>
+
+                <div id="admin-unlocked" style="display:none;">
+                    <div class="admin-tabs">
+                        <button class="admin-tab-btn active" onclick="switchAdminTab('add', this)">➕ Add Place</button>
+                        <button class="admin-tab-btn" onclick="switchAdminTab('manage', this)">📋 Manage</button>
+                        <button class="admin-tab-btn" onclick="switchAdminTab('db', this)">☁️ Cloud Database Settings</button>
+                    </div>
+
+                    <!-- Add Place -->
+                    <div id="tab-add" class="admin-tab-content">
+                        <div class="admin-layout">
+                            <div class="form-panel">
+                                <h3>➕ Add New Place to Cloud</h3>
+                                <div class="form-group" style="margin-top:15px;">
+                                    <label class="form-label">Map</label>
+                                    <select class="form-input" id="admin-map-sel" onchange="switchAdminMap()">
+                                        <option value="srilanka">🇱🇰 Sri Lanka Map</option>
+                                        <option value="world">🌍 World Map</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Place Name *</label>
+                                    <input class="form-input" type="text" id="place-name" placeholder="e.g., Sigiriya">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Sinhala Name</label>
+                                    <input class="form-input" type="text" id="place-name-si" placeholder="e.g., සීගිරිය">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Category</label>
+                                    <select class="form-input" id="place-cat">
+                                        <option value="kingdom">👑 Kingdom</option>
+                                        <option value="city">🏙 City</option>
+                                        <option value="port">⚓ Port</option>
+                                        <option value="river">🏞 River</option>
+                                        <option value="mountain">⛰ Mountain</option>
+                                        <option value="other">📍 Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Coordinates</label>
+                                    <div class="coord-box" id="coord-display">Click on the map →</div>
+                                </div>
+                                <button class="btn btn-success btn-lg" style="width:100%;" onclick="savePlaceToCloud()">☁️ Save to Cloud Database</button>
+                            </div>
+
+                            <div class="map-panel">
+                                <div class="map-panel-header"><h4>👆 Click on the map to place coordinate</h4></div>
+                                <div class="map-panel-body">
+                                    <div class="map-wrapper" id="admin-map-wrapper">
+                                        <img id="admin-map-img" src="https://pastpapers.wiki/wp-content/uploads/2022/03/Empty-Sri-Lanka-Map-for-Practice-Ol-History-Map-Marking-in-GCE-OL-Examination-scaled.jpg" alt="Map">
+                                        <div id="admin-markers"></div>
+                                        <div id="admin-click-marker" class="map-marker" style="display:none;">
+                                            <div class="marker-dot" style="background:var(--warning);"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manage -->
+                    <div id="tab-manage" class="admin-tab-content" style="display:none;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Map</th>
+                                    <th>Category</th>
+                                    <th>Coords</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Database Settings -->
+                    <div id="tab-db" class="admin-tab-content" style="display:none;">
+                        <div class="form-panel" style="max-width:600px; margin:0 auto;">
+                            <h3>☁️ Cloud Database Configuration</h3>
+                            <p style="color:var(--text-secondary); margin:10px 0 20px; font-size:0.85rem;">
+                                Use any Room Code. All devices connected to the same Room Code share the exact same live database.
+                            </p>
+                            <div class="form-group">
+                                <label class="form-label">Current Cloud Room Code</label>
+                                <input class="form-input" type="text" id="db-room-input" placeholder="e.g. olhistory2025">
+                            </div>
+                            <button class="btn btn-primary" style="width:100%; margin-bottom:12px;" onclick="changeRoomCode()">💾 Connect Room Code</button>
+                            <button class="btn btn-success" style="width:100%;" onclick="loadSamplePlacesToCloud()">📍 Load 10 Sample Historical Places</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Database Room Switcher Modal -->
+    <div class="modal-overlay" id="db-modal">
+        <div class="modal-box">
+            <h2>☁️ Connect Devices to Same Database</h2>
+            <p style="color:var(--text-secondary); font-size:0.85rem; margin:10px 0 20px;">
+                Enter a Room Code (like your name or exam year). Type this exact same code on your phone and PC!
+            </p>
+            <input class="form-input" type="text" id="modal-room-input" placeholder="e.g., history2025" style="text-align:center; font-size:1.1rem; font-weight:700; margin-bottom:15px;">
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-primary" style="flex:1;" onclick="applyModalRoom()">🔗 Connect Room</button>
+                <button class="btn btn-ghost" onclick="closeModal('db-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // ═════════════════════════════════════════════════════════════
+        // CLOUD DATABASE ENGINE (FREE KV CLOUD SYNC + OFFLINE BACKUP)
+        // ═════════════════════════════════════════════════════════════
+
+        const MAPS = {
+            srilanka: 'https://pastpapers.wiki/wp-content/uploads/2022/03/Empty-Sri-Lanka-Map-for-Practice-Ol-History-Map-Marking-in-GCE-OL-Examination-scaled.jpg',
+            world: 'https://imgv2-1-f.scribdassets.com/img/document/807484634/original/934c205a17/1?v=1'
+        };
+
+        // Cloud DB API
+        const CLOUD_ENDPOINT = 'https://api.restful-api.dev/objects';
+        let currentRoom = localStorage.getItem('mep_cloud_room') || 'default-room';
+        let cloudObjectId = localStorage.getItem('mep_cloud_obj_id_' + currentRoom) || null;
+        let cachedPlaces = JSON.parse(localStorage.getItem('mep_places_' + currentRoom) || '[]');
+
+        function toast(msg, type = 'success') {
+            const c = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.textContent = msg;
+            c.appendChild(t);
+            setTimeout(() => t.classList.add('show'), 10);
+            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+        }
+
+        // Fetch live places from Cloud DB
+        async function syncFromCloud() {
+            try {
+                // If we have an existing cloud object id for this room, fetch it
+                if (cloudObjectId) {
+                    const res = await fetch(`${CLOUD_ENDPOINT}/${cloudObjectId}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.data && data.data.places) {
+                            cachedPlaces = data.data.places;
+                            localStorage.setItem('mep_places_' + currentRoom, JSON.stringify(cachedPlaces));
+                            updateUI();
+                            return;
+                        }
+                    }
+                }
+
+                // Search cloud objects for this room
+                const searchRes = await fetch(`${CLOUD_ENDPOINT}`);
+                if (searchRes.ok) {
+                    const list = await searchRes.json();
+                    const found = list.find(item => item.name === `map_exam_room_${currentRoom}`);
+                    if (found && found.data && found.data.places) {
+                        cloudObjectId = found.id;
+                        localStorage.setItem('mep_cloud_obj_id_' + currentRoom, found.id);
+                        cachedPlaces = found.data.places;
+                        localStorage.setItem('mep_places_' + currentRoom, JSON.stringify(cachedPlaces));
+                    }
+                }
+            } catch (err) {
+                console.log('Using local offline cache:', err);
+            }
+            updateUI();
+        }
+
+        // Push places to Cloud DB
+        async function pushToCloud(places) {
+            cachedPlaces = places;
+            localStorage.setItem('mep_places_' + currentRoom, JSON.stringify(places));
+            updateUI();
+
+            try {
+                if (cloudObjectId) {
+                    // Update existing
+                    await fetch(`${CLOUD_ENDPOINT}/${cloudObjectId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: `map_exam_room_${currentRoom}`,
+                            data: { places: places, updated: new Date().toISOString() }
+                        })
+                    });
+                } else {
+                    // Create new
+                    const res = await fetch(CLOUD_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: `map_exam_room_${currentRoom}`,
+                            data: { places: places, updated: new Date().toISOString() }
+                        })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        cloudObjectId = data.id;
+                        localStorage.setItem('mep_cloud_obj_id_' + currentRoom, data.id);
+                    }
+                }
+                toast('☁️ Synced to Cloud Database!');
+            } catch (err) {
+                toast('Saved locally (Offline)', 'info');
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('top-room-badge').textContent = `Cloud: ${currentRoom}`;
+            document.getElementById('home-room-tag').textContent = currentRoom;
+            document.getElementById('stat-total').textContent = cachedPlaces.length;
+            document.getElementById('stat-sl').textContent = cachedPlaces.filter(p => p.map === 'srilanka').length;
+            document.getElementById('stat-world').textContent = cachedPlaces.filter(p => p.map === 'world').length;
+
+            refreshPractice();
+            if (document.getElementById('admin-unlocked').style.display !== 'none') {
+                refreshAdminMarkers();
+                renderTable();
+            }
+        }
+
+        function openDatabaseModal() {
+            document.getElementById('modal-room-input').value = currentRoom;
+            document.getElementById('db-modal').classList.add('show');
+        }
+
+        function applyModalRoom() {
+            const newRoom = document.getElementById('modal-room-input').value.trim() || 'default-room';
+            currentRoom = newRoom;
+            localStorage.setItem('mep_cloud_room', currentRoom);
+            cloudObjectId = localStorage.getItem('mep_cloud_obj_id_' + currentRoom) || null;
+            cachedPlaces = JSON.parse(localStorage.getItem('mep_places_' + currentRoom) || '[]');
+            closeModal('db-modal');
+            syncFromCloud();
+            toast(`Switched to Cloud Room: ${currentRoom}`);
+        }
+
+        function changeRoomCode() {
+            const r = document.getElementById('db-room-input').value.trim();
+            if (r) {
+                document.getElementById('modal-room-input').value = r;
+                applyModalRoom();
+            }
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+        // ═════════════════════════════════════════════════════════════
+        // ADMIN & MAP MARKING
+        // ═════════════════════════════════════════════════════════════
+        let clickX = null, clickY = null;
+
+        function unlockAdmin() {
+            if (document.getElementById('admin-pwd').value === 'admin123') {
+                document.getElementById('admin-locked').style.display = 'none';
+                document.getElementById('admin-unlocked').style.display = 'block';
+                document.getElementById('db-room-input').value = currentRoom;
+                refreshAdminMarkers();
+                renderTable();
+            } else {
+                toast('Wrong password!', 'error');
+            }
+        }
+
+        function switchAdminTab(tab, btn) {
+            document.querySelectorAll('.admin-tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + tab).style.display = 'block';
+            if (btn) btn.classList.add('active');
+            if (tab === 'manage') renderTable();
+        }
+
+        function switchAdminMap() {
+            const m = document.getElementById('admin-map-sel').value;
+            document.getElementById('admin-map-img').src = MAPS[m];
+            refreshAdminMarkers();
+        }
+
+        function savePlaceToCloud() {
+            const name = document.getElementById('place-name').value.trim();
+            const nameSi = document.getElementById('place-name-si').value.trim();
+            const category = document.getElementById('place-cat').value;
+            const map = document.getElementById('admin-map-sel').value;
+
+            if (!name) return toast('Place name required!', 'error');
+            if (clickX === null) return toast('Click on the map to set coordinate!', 'error');
+
+            const places = [...cachedPlaces, {
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+                name, nameSi, category, map,
+                x: clickX, y: clickY
+            }];
+
+            pushToCloud(places);
+            document.getElementById('place-name').value = '';
+            document.getElementById('place-name-si').value = '';
+            clickX = null; clickY = null;
+            document.getElementById('admin-click-marker').style.display = 'none';
+            document.getElementById('coord-display').textContent = 'Click on the map →';
+        }
+
+        function refreshAdminMarkers() {
+            const c = document.getElementById('admin-markers');
+            const m = document.getElementById('admin-map-sel').value;
+            const places = cachedPlaces.filter(p => p.map === m);
+            c.innerHTML = '';
+            places.forEach(p => {
+                const mk = document.createElement('div');
+                mk.className = 'map-marker';
+                mk.style.left = p.x + '%'; mk.style.top = p.y + '%';
+                mk.innerHTML = `<div class="marker-label">${p.name}</div><div class="marker-dot"></div>`;
+                c.appendChild(mk);
+            });
+        }
+
+        function renderTable() {
+            const tb = document.getElementById('table-body');
+            tb.innerHTML = cachedPlaces.map(p => `
+                <tr>
+                    <td><strong>${p.name}</strong> ${p.nameSi ? '<br><small>'+p.nameSi+'</small>' : ''}</td>
+                    <td>${p.map}</td>
+                    <td>${p.category}</td>
+                    <td style="font-family:'JetBrains Mono';font-size:0.75rem;">${p.x}, ${p.y}</td>
+                    <td><button class="btn btn-danger btn-sm" onclick="deletePlace('${p.id}')">🗑</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function deletePlace(id) {
+            const places = cachedPlaces.filter(p => p.id !== id);
+            pushToCloud(places);
+        }
+
+        function loadSamplePlacesToCloud() {
+            const samples = [
+                { id:'s1', name:'Anuradhapura', nameSi:'අනුරාධපුරය', category:'kingdom', map:'srilanka', x:42.5, y:28.5 },
+                { id:'s2', name:'Polonnaruwa', nameSi:'පොළොන්නරුව', category:'kingdom', map:'srilanka', x:52.0, y:33.0 },
+                { id:'s3', name:'Kandy', nameSi:'මහනුවර', category:'kingdom', map:'srilanka', x:44.0, y:47.0 },
+                { id:'s4', name:'Colombo', nameSi:'කොළඹ', category:'port', map:'srilanka', x:30.0, y:56.0 },
+                { id:'s5', name:'Galle', nameSi:'ගාල්ල', category:'port', map:'srilanka', x:34.0, y:76.0 },
+                { id:'s6', name:'Trincomalee', nameSi:'ත්‍රිකුණාමලය', category:'port', map:'srilanka', x:56.0, y:26.0 },
+                { id:'s7', name:'Jaffna', nameSi:'යාපනය', category:'city', map:'srilanka', x:43.0, y:8.0 },
+                { id:'s8', name:'Sigiriya', nameSi:'සීගිරිය', category:'kingdom', map:'srilanka', x:48.5, y:35.0 },
+                { id:'s9', name:'Mahaweli River', nameSi:'මහවැලි ගඟ', category:'river', map:'srilanka', x:50.0, y:40.0 },
+                { id:'s10', name:"Adam's Peak", nameSi:'ශ්‍රී පාදය', category:'mountain', map:'srilanka', x:38.5, y:52.0 }
+            ];
+            pushToCloud(samples);
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // PRACTICE & EXAM
+        // ═════════════════════════════════════════════════════════════
+        let labelsOn = true;
+        function switchPracticeMap() {
+            document.getElementById('practice-map-img').src = MAPS[document.getElementById('practice-map-select').value];
+            refreshPractice();
+        }
+
+        function refreshPractice() {
+            const m = document.getElementById('practice-map-select').value;
+            const cf = document.getElementById('practice-cat-filter').value;
+            let places = cachedPlaces.filter(p => p.map === m);
+            if (cf !== 'all') places = places.filter(p => p.category === cf);
+
+            document.getElementById('practice-place-count').textContent = places.length + ' places';
+            const mc = document.getElementById('practice-markers');
+            mc.innerHTML = '';
+            places.forEach(p => {
+                const mk = document.createElement('div');
+                mk.className = 'map-marker';
+                mk.style.left = p.x + '%'; mk.style.top = p.y + '%';
+                mk.innerHTML = `<div class="marker-label" style="display:${labelsOn?'block':'none'}">${p.name}</div><div class="marker-dot"></div>`;
+                mc.appendChild(mk);
+            });
+
+            document.getElementById('practice-place-list').innerHTML = places.map(p => `
+                <div style="padding:8px 12px; margin-bottom:4px; background:var(--glass); border-radius:6px;">
+                    <strong>${p.name}</strong> ${p.nameSi ? '<small style="color:var(--text-muted)">('+p.nameSi+')</small>' : ''}
+                </div>
+            `).join('') || '<div style="color:var(--text-muted); text-align:center;">No places added yet</div>';
+        }
+
+        function toggleLabels() {
+            labelsOn = !labelsOn;
+            document.querySelectorAll('#practice-markers .marker-label').forEach(l => l.style.display = labelsOn ? 'block' : 'none');
+        }
+
+        function showSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.topbar-nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('section-' + name).classList.add('active');
+            const idx = { home:0, practice:1, exam:2, admin:3 }[name];
+            document.querySelectorAll('.topbar-nav-btn')[idx].classList.add('active');
+            if (name === 'practice') refreshPractice();
+        }
+
+        // Exam
+        let examActive = false, examQs = [], examIdx = 0, examCor = 0;
+
+        function startExam() {
+            const m = document.getElementById('exam-map-select').value;
+            let places = cachedPlaces.filter(p => p.map === m).sort(() => Math.random() - 0.5);
+            const countVal = document.getElementById('exam-q-count').value;
+            const count = countVal === 'all' ? places.length : Math.min(parseInt(countVal), places.length);
+
+            if (places.length === 0) return toast('No places available on this map!', 'error');
+
+            examQs = places.slice(0, count);
+            examIdx = 0; examCor = 0;
+            document.getElementById('exam-setup').style.display = 'none';
+            document.getElementById('exam-active').style.display = 'block';
+            document.getElementById('exam-map-img').src = MAPS[m];
+            document.getElementById('exam-markers').innerHTML = '';
+            examActive = true;
+            showExamQuestion();
+        }
+
+        function showExamQuestion() {
+            if (examIdx >= examQs.length) return endExam();
+            const q = examQs[examIdx];
+            document.getElementById('q-number').textContent = `Question ${examIdx + 1} of ${examQs.length}`;
+            document.getElementById('q-text').textContent = q.name;
+            document.getElementById('live-score').textContent = `${examCor}/${examIdx}`;
+        }
+
+        function handleExamClick(x, y) {
+            if (!examActive) return;
+            const q = examQs[examIdx];
+            const img = document.getElementById('exam-map-img');
+            const dx = (x - q.x) / 100 * img.clientWidth;
+            const dy = (y - q.y) / 100 * img.clientHeight;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const isCorrect = dist <= 35;
+
+            if (isCorrect) examCor++;
+
+            const mc = document.getElementById('exam-markers');
+            const mk = document.createElement('div');
+            mk.className = 'map-marker';
+            mk.style.left = x + '%'; mk.style.top = y + '%';
+            mk.innerHTML = `<div class="marker-dot ${isCorrect ? 'correct' : 'wrong'}"></div>`;
+            mc.appendChild(mk);
+
+            toast(isCorrect ? '✅ Correct!' : '❌ Incorrect', isCorrect ? 'success' : 'error');
+            examIdx++;
+            setTimeout(showExamQuestion, 600);
+        }
+
+        function skipQuestion() {
+            examIdx++;
+            showExamQuestion();
+        }
+
+        function endExam() {
+            examActive = false;
+            toast(`Exam ended! Score: ${Math.round((examCor / examQs.length) * 100)}%`);
+            setTimeout(() => {
+                document.getElementById('exam-setup').style.display = 'block';
+                document.getElementById('exam-active').style.display = 'none';
+            }, 1500);
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // INIT & AUTO-POLLING
+        // ═════════════════════════════════════════════════════════════
+        document.addEventListener('DOMContentLoaded', () => {
+            syncFromCloud();
+
+            // Background poll every 8 seconds so phone updates live without manual refresh!
+            setInterval(syncFromCloud, 8000);
+
+            // Admin click handler
+            document.getElementById('admin-map-wrapper').addEventListener('click', (e) => {
+                const img = document.getElementById('admin-map-img');
+                const r = img.getBoundingClientRect();
+                clickX = parseFloat(((e.clientX - r.left) / r.width * 100).toFixed(2));
+                clickY = parseFloat(((e.clientY - r.top) / r.height * 100).toFixed(2));
+                document.getElementById('coord-display').textContent = `X: ${clickX}% | Y: ${clickY}%`;
+                const mk = document.getElementById('admin-click-marker');
+                mk.style.display = 'block';
+                mk.style.left = clickX + '%'; mk.style.top = clickY + '%';
+            });
+
+            // Exam click handler
+            document.getElementById('exam-map-wrapper').addEventListener('click', (e) => {
+                if (!examActive) return;
+                const img = document.getElementById('exam-map-img');
+                const r = img.getBoundingClientRect();
+                const x = parseFloat(((e.clientX - r.left) / r.width * 100).toFixed(2));
+                const y = parseFloat(((e.clientY - r.top) / r.height * 100).toFixed(2));
+                handleExamClick(x, y);
+            });
+        });
+    </script>
+</body>
+</html>
